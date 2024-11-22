@@ -46,3 +46,6 @@ docker compose up -d
   > http://localhost:9000/if/flow/initial-setup/
 
 ![after succesfully setup of the admin account](/setup/image-2.png)
+
+- Press 'Create With Wizard'
+
