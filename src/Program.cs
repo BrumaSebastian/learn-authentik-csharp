@@ -1,12 +1,8 @@
 using System.Text;
-using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Options;
 using Microsoft.OpenApi.Models;
 using Server.Configurations;
-using Server.Models;
 using Server.Models.Options;
-using Server.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -23,9 +19,29 @@ builder.Services.AddSwaggerGen(opt => {
             "\r\n\r\n Enter 'Bearer' [space] and then your token in the text input below." +
             "\r\n\r\nExample: \"Bearer 12345abcdef\"",
     });
+
+    opt.AddSecurityRequirement(new Microsoft.OpenApi.Models.OpenApiSecurityRequirement
+    {
+        {
+            new Microsoft.OpenApi.Models.OpenApiSecurityScheme
+            {
+                Reference = new Microsoft.OpenApi.Models.OpenApiReference
+                {
+                    Type = Microsoft.OpenApi.Models.ReferenceType.SecurityScheme,
+                    Id = "Bearer"
+                },
+                Scheme = "oauth2",
+                Name = "Bearer",
+                In = ParameterLocation.Header
+            },
+            new List<string>() // No specific scopes required
+        }
+    });
 });
 builder.Services.AddServerAuthentication();
-builder.Services.AddHttpClient();
+builder.Services.AddHttpClient("AuthClient", c => {
+    c.BaseAddress = new(builder.Configuration["AuthenticationOptions:BaseUri"] ?? throw new Exception("Auth client requires base address"));
+});
 
 builder.Services.AddCors(options =>
 {
@@ -33,7 +49,7 @@ builder.Services.AddCors(options =>
         builder =>
         {
             builder
-                .WithOrigins("http://localhost:5295", "http://localhost:9000") // Adjust these as needed
+                .WithOrigins("http://localhost:5295", "http://localhost:9000", "http://localhost:4200") // Adjust these as needed
                 .AllowCredentials()  // Allows cookies to be sent
                 .AllowAnyHeader()
                 .AllowAnyMethod();
@@ -57,6 +73,43 @@ app.UseAuthorization();
 
 app.UseHttpsRedirection();
 
+app.MapPost("/retrieve-token", async (string code, [FromServices]IHttpClientFactory clientFactory, [FromServices]IConfiguration configuration) => { 
+    var authClient = clientFactory.CreateClient("AuthClient");
+    var data = new StringContent(
+        $"grant_type=authorization_code" +
+        $"&code={code}" + 
+        $"&client_id={configuration["AuthenticationOptions:ClientId"]}" +
+        $"&client_secret={configuration["AuthenticationOptions:ClientSecret"]}" +
+        $"&redirect_uri={configuration["AuthenticationOptions:CallbackPath"]}",
+        Encoding.UTF8,
+        "application/x-www-form-urlencoded"
+    );
+
+    var endpoint = configuration["AuthenticationOptions:JWTToken"];
+    var response = await authClient.PostAsync("token/", data);
+    var result = await response.Content.ReadAsStringAsync();
+
+    return Results.Ok(result);
+})
+.WithName("retrieve-token")
+.WithOpenApi();
+
+app.MapPost("/verify-token", async ([FromServices]IHttpClientFactory clientFactory, [FromServices]IConfiguration configuration, HttpContext context) => { 
+    var authClient = clientFactory.CreateClient("AuthClient");
+    var s = context.Request.Headers.Authorization.ToString().Split()[^1];
+    var data = new StringContent(
+        $"token={context.Request.Headers.Authorization.ToString().Split()[^1]}&client_id={configuration["AuthenticationOptions:ClientId"]}&client_secret={configuration["AuthenticationOptions:ClientSecret"]}&scope=openid offline_access",
+        Encoding.UTF8,
+        "application/x-www-form-urlencoded"
+    );
+    var response = await authClient.PostAsync("introspect/", data);
+    var result = await response.Content.ReadAsStringAsync();
+
+    return Results.Ok(result);
+})
+.WithName("verify-token")
+// .RequireAuthorization()
+.WithOpenApi();
 
 app.MapGet("/test", () => { Console.WriteLine("vat di fuc"); return Task.CompletedTask; })
 .WithName("test")
