@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.OpenApi.Models;
 using Server.Configurations;
 using Server.Models.Options;
+using src.Services.HttpClients;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -38,10 +39,15 @@ builder.Services.AddSwaggerGen(opt => {
         }
     });
 });
+
 builder.Services.AddServerAuthentication();
+
 builder.Services.AddHttpClient("AuthClient", c => {
     c.BaseAddress = new(builder.Configuration["AuthenticationOptions:BaseUri"] ?? throw new Exception("Auth client requires base address"));
+    c.DefaultRequestHeaders.Add("ContentType", "application/x-www-form-urlencoded");
 });
+
+builder.Services.AddTransient<IAuthentikClient, AuthClient>();
 
 builder.Services.AddCors(options =>
 {
@@ -73,39 +79,16 @@ app.UseAuthorization();
 
 app.UseHttpsRedirection();
 
-app.MapPost("/retrieve-token", async (string code, [FromServices]IHttpClientFactory clientFactory, [FromServices]IConfiguration configuration) => { 
-    var authClient = clientFactory.CreateClient("AuthClient");
-    var data = new StringContent(
-        $"grant_type=authorization_code" +
-        $"&code={code}" + 
-        $"&client_id={configuration["AuthenticationOptions:ClientId"]}" +
-        $"&client_secret={configuration["AuthenticationOptions:ClientSecret"]}" +
-        $"&redirect_uri={configuration["AuthenticationOptions:CallbackPath"]}",
-        Encoding.UTF8,
-        "application/x-www-form-urlencoded"
-    );
-
-    var endpoint = configuration["AuthenticationOptions:JWTToken"];
-    var response = await authClient.PostAsync("token/", data);
-    var result = await response.Content.ReadAsStringAsync();
-
-    return Results.Ok(result);
+app.MapPost("/retrieve-token", async (string code, [FromServices] IAuthentikClient authClient) =>
+{
+    return Results.Ok(await authClient.RetrieveToken(code));
 })
 .WithName("retrieve-token")
 .WithOpenApi();
 
-app.MapPost("/verify-token", async ([FromServices]IHttpClientFactory clientFactory, [FromServices]IConfiguration configuration, HttpContext context) => { 
-    var authClient = clientFactory.CreateClient("AuthClient");
-    var s = context.Request.Headers.Authorization.ToString().Split()[^1];
-    var data = new StringContent(
-        $"token={context.Request.Headers.Authorization.ToString().Split()[^1]}&client_id={configuration["AuthenticationOptions:ClientId"]}&client_secret={configuration["AuthenticationOptions:ClientSecret"]}&scope=openid offline_access",
-        Encoding.UTF8,
-        "application/x-www-form-urlencoded"
-    );
-    var response = await authClient.PostAsync("introspect/", data);
-    var result = await response.Content.ReadAsStringAsync();
-
-    return Results.Ok(result);
+app.MapPost("/verify-token", async ([FromServices] IAuthentikClient authClient, HttpContext context) => { 
+    var authorizationToken = context.Request.Headers.Authorization.ToString().Split()[^1];
+    return Results.Ok(await authClient.ValidateToken(authorizationToken));
 })
 .WithName("verify-token")
 // .RequireAuthorization()
