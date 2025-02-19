@@ -1,4 +1,3 @@
-using System.Text;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.OpenApi.Models;
 using Server.Configurations;
@@ -10,7 +9,8 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.Configure<AuthenticationOptions>(builder.Configuration.GetSection(nameof(AuthenticationOptions)));
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(opt => {
-    opt.AddSecurityDefinition("Bearer", new Microsoft.OpenApi.Models.OpenApiSecurityScheme(){
+    opt.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme()
+    {
         Name = "Authorization",
         Type = SecuritySchemeType.ApiKey,
         Scheme = "Bearer",
@@ -21,14 +21,14 @@ builder.Services.AddSwaggerGen(opt => {
             "\r\n\r\nExample: \"Bearer 12345abcdef\"",
     });
 
-    opt.AddSecurityRequirement(new Microsoft.OpenApi.Models.OpenApiSecurityRequirement
+    opt.AddSecurityRequirement(new OpenApiSecurityRequirement
     {
         {
-            new Microsoft.OpenApi.Models.OpenApiSecurityScheme
+            new OpenApiSecurityScheme
             {
-                Reference = new Microsoft.OpenApi.Models.OpenApiReference
+                Reference = new OpenApiReference
                 {
-                    Type = Microsoft.OpenApi.Models.ReferenceType.SecurityScheme,
+                    Type = ReferenceType.SecurityScheme,
                     Id = "Bearer"
                 },
                 Scheme = "oauth2",
@@ -42,7 +42,7 @@ builder.Services.AddSwaggerGen(opt => {
 
 builder.Services.AddServerAuthentication();
 
-builder.Services.AddHttpClient("AuthClient", c => {
+builder.Services.AddHttpClient(builder.Configuration["AuthenticationOptions:ClientConfigName"] ?? throw new Exception("Client config name required"), c => {
     c.BaseAddress = new(builder.Configuration["AuthenticationOptions:BaseUri"] ?? throw new Exception("Auth client requires base address"));
     c.DefaultRequestHeaders.Add("ContentType", "application/x-www-form-urlencoded");
 });
@@ -62,7 +62,6 @@ builder.Services.AddCors(options =>
         });
 });
 
-
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
@@ -81,7 +80,9 @@ app.UseHttpsRedirection();
 
 app.MapPost("/retrieve-token", async (string code, [FromServices] IAuthentikClient authClient) =>
 {
-    return Results.Ok(await authClient.RetrieveToken(code));
+    var response = await authClient.RetrieveToken(code);
+
+    return response.IsSuccess ? Results.Ok(response.Content) : Results.BadRequest(response.ErrorMessage);
 })
 .WithName("retrieve-token")
 .WithOpenApi();

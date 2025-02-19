@@ -2,6 +2,7 @@ namespace Server.Models.Options;
 
 public class AuthenticationOptions
 {
+    public string ClientConfigName { get; set; }
     public string AuthorizationEndpoint { get; init; }
     public string JWTTokenEndpoint { get; init; }
     public string IntrospectEndpoint { get; init; }

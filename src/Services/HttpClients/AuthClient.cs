@@ -1,8 +1,10 @@
 
 using Microsoft.Extensions.Options;
 using Server.Models.Options;
+using Server.Models.Responses;
 using src.Utils.AuthModels;
 using System.Text;
+using System.Text.Json;
 
 namespace src.Services.HttpClients
 {
@@ -13,13 +15,13 @@ namespace src.Services.HttpClients
 
         public AuthClient(IHttpClientFactory httpClientFactory, IOptions<AuthenticationOptions> authOptions)
         {
-            _httpClient = httpClientFactory.CreateClient("AuthClient");
             _authenticationOptions = authOptions.Value;
+            _httpClient = httpClientFactory.CreateClient(_authenticationOptions.ClientConfigName);
         }
 
-        public async Task<string> RetrieveToken(string authorizationCode)
+        public async Task<Result<AuthorizationInfo>> RetrieveToken(string authorizationCode)
         {
-            var paramBuilder = new HttpParamsBuilder()
+            var requestParams = new HttpParamsBuilder()
                 .AddGrantType(GrantType.Authorization_code)
                 .AddAuthorizationCode(authorizationCode)
                 .AddClientId(_authenticationOptions.ClientId)
@@ -27,23 +29,39 @@ namespace src.Services.HttpClients
                 .AddRedirectUri(_authenticationOptions.CallbackPath)
                 .ToString();
 
-            var response = await _httpClient.PostAsync(_authenticationOptions.JWTTokenEndpoint, new StringContent(paramBuilder, Encoding.UTF8, "application/x-www-form-urlencoded"));
+            var response = await _httpClient.PostAsync(
+                _authenticationOptions.JWTTokenEndpoint, 
+                CreateFormDataContent(requestParams));
 
-            return await response.Content.ReadAsStringAsync();
+            string content = await response.Content.ReadAsStringAsync();
+
+            return response.IsSuccessStatusCode
+                ? Result<AuthorizationInfo>.Success(JsonSerializer.Deserialize<AuthorizationInfo>(content, GetSerializerOptions()))
+                : Result<AuthorizationInfo>.Failure(JsonSerializer.Deserialize<ErrorMessage>(content, GetSerializerOptions()));
         }
 
         public async Task<string> ValidateToken(string token)
         {
-            var paramBuilder = new HttpParamsBuilder()
+            var requestParams = new HttpParamsBuilder()
                 .AddJWTToken(token)
                 .AddClientId(_authenticationOptions.ClientId)
                 .AddClientSecret(_authenticationOptions.ClientSecret)
                 .AddScopes([Scopes.Openid, Scopes.Offline_access])
                 .ToString();
 
-            var response = await _httpClient.PostAsync(_authenticationOptions.IntrospectEndpoint, new StringContent(paramBuilder, Encoding.UTF8, "application/x-www-form-urlencoded"));
+            var response = await _httpClient.PostAsync(
+                _authenticationOptions.IntrospectEndpoint,
+                CreateFormDataContent(requestParams));
 
             return await response.Content.ReadAsStringAsync();
         }
+
+        private static StringContent CreateFormDataContent(string requestParams) =>
+            new(requestParams, Encoding.UTF8, "application/x-www-form-urlencoded");
+
+        private static JsonSerializerOptions GetSerializerOptions() => new()
+        {
+            PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower
+        };
     }
 }
