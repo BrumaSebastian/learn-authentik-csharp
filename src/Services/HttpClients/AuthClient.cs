@@ -3,7 +3,6 @@ using Microsoft.Extensions.Options;
 using Server.Models.Options;
 using Server.Models.Responses;
 using src.Utils.AuthModels;
-using System.Text;
 using System.Text.Json;
 
 namespace src.Services.HttpClients
@@ -27,11 +26,9 @@ namespace src.Services.HttpClients
                 .AddClientId(_authenticationOptions.ClientId)
                 .AddClientSecret(_authenticationOptions.ClientSecret)
                 .AddRedirectUri(_authenticationOptions.CallbackPath)
-                .ToString();
+                .CreateFormContent();
 
-            var response = await _httpClient.PostAsync(
-                _authenticationOptions.JWTTokenEndpoint, 
-                CreateFormDataContent(requestParams));
+            var response = await _httpClient.PostAsync(_authenticationOptions.JWTTokenEndpoint, requestParams);
 
             string content = await response.Content.ReadAsStringAsync();
 
@@ -47,17 +44,12 @@ namespace src.Services.HttpClients
                 .AddClientId(_authenticationOptions.ClientId)
                 .AddClientSecret(_authenticationOptions.ClientSecret)
                 .AddScopes([Scopes.Openid, Scopes.Offline_access])
-                .ToString();
+                .CreateFormContent();
 
-            var response = await _httpClient.PostAsync(
-                _authenticationOptions.IntrospectEndpoint,
-                CreateFormDataContent(requestParams));
+            var response = await _httpClient.PostAsync(_authenticationOptions.IntrospectEndpoint, requestParams);
 
             return await response.Content.ReadAsStringAsync();
         }
-
-        private static StringContent CreateFormDataContent(string requestParams) =>
-            new(requestParams, Encoding.UTF8, "application/x-www-form-urlencoded");
 
         private static JsonSerializerOptions GetSerializerOptions() => new()
         {

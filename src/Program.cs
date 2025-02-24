@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.OpenApi.Models;
 using Server.Configurations;
+using Server.Middlewares;
 using Server.Models.Options;
 using src.Services.HttpClients;
 
@@ -71,12 +72,15 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
+app.UseHttpsRedirection();
+
 app.UseCors("AllowSpecificOrigin");
 
 app.UseAuthentication();
+app.UseMiddleware<AuthentikIntrospectionMiddleware>();
 app.UseAuthorization();
 
-app.UseHttpsRedirection();
+
 
 app.MapPost("/retrieve-token", async (string code, [FromServices] IAuthentikClient authClient) =>
 {
@@ -92,7 +96,7 @@ app.MapPost("/verify-token", async ([FromServices] IAuthentikClient authClient, 
     return Results.Ok(await authClient.ValidateToken(authorizationToken));
 })
 .WithName("verify-token")
-// .RequireAuthorization()
+.RequireAuthorization()
 .WithOpenApi();
 
 app.MapGet("/test", () => { Console.WriteLine("vat di fuc"); return Task.CompletedTask; })

@@ -1,8 +1,8 @@
-using Microsoft.Extensions.Options;
-using Server.Models.Options;
-using Microsoft.IdentityModel.Tokens;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Logging;
+using Microsoft.IdentityModel.Tokens;
+using Server.Models.Options;
 
 namespace Server.Configurations;
 
@@ -18,18 +18,18 @@ public static class AuthenticationConfigs
         services.AddAuthentication( app => {
             app.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
             app.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
-        } )
-            .AddJwtBearer(options =>
+        })
+        .AddJwtBearer(options =>
+        {
+            options.RequireHttpsMetadata = false;
+            options.Authority = $"{authOptions.BaseUri}dev-authentik-app/";
+            options.Audience = authOptions.ClientId;
+            options.TokenValidationParameters = new TokenValidationParameters
             {
-                options.RequireHttpsMetadata = false;
-                options.Authority = "http://localhost:9000/application/o/angular-client/";
-                options.Audience = "nE5oG8lPWZNPs7yxF8o46dRu8lTyeohKDVDBwupF";
-                options.TokenValidationParameters = new TokenValidationParameters
-                {
-                    ValidateAudience = true,
-                    ValidateIssuer = true,
-                };
-            });
+                ValidateAudience = true,
+                ValidateIssuer = true,
+            };
+        });
 
         services.AddAuthorization();
 
