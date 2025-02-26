@@ -51,28 +51,7 @@ namespace src.Utils.AuthModels
             return this;
         }
 
-        //public override string ToString()
-        //{
-        //    var paramBuilder = new StringBuilder();
-
-        //    foreach (var (key, value) in _params)
-        //    {
-        //        paramBuilder.Append($"{key}={value}&");
-        //    }
-
-        //    // Remove the trailing '&' if present
-        //    if (paramBuilder.Length > 0)
-        //    {
-        //        paramBuilder.Length--; // Truncate the last character
-        //    }
-
-        //    return paramBuilder.ToString();
-        //}
-
-        public FormUrlEncodedContent CreateFormContent()
-        {
-            return new FormUrlEncodedContent(_params);
-        }
+        public FormUrlEncodedContent CreateFormContent() => new FormUrlEncodedContent(_params);
 
         private void AddStringParam(string name, string value)
         {
