@@ -22,7 +22,7 @@ public static class AuthenticationConfigs
         .AddJwtBearer(options =>
         {
             options.RequireHttpsMetadata = false;
-            options.Authority = $"{authOptions.BaseUri}dev-authentik-app/";
+            options.Authority = $"{authOptions.BaseUri}{authOptions.AppName}/";
             options.Audience = authOptions.ClientId;
             options.TokenValidationParameters = new TokenValidationParameters
             {
